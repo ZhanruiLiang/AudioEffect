@@ -1,0 +1,16 @@
+There are modules:
+
+Display
+Physics
+Record
+EffTheme
+TextLayer
+
+The working proccess:
+
+	1. init
+	2. while runing:
+	3.   record sound
+	4.   change the visual effect
+	5.   change the effect theme at some condition
+	6.   show the song name
