@@ -14,3 +14,25 @@ The working proccess:
 	4.   change the visual effect
 	5.   change the effect theme at some condition
 	6.   show the song name
+
+The design of the Physics module:
+usage: 
+
+world = Physics.PhyWorld()
+body1 = Physics.PhyBody(....)
+world.attach(body1)
+body2 = Physics.PhyBody(....)
+world.attach(body2)
+joint1 = Physics.PhyJoint(target1=body1, target2=body2, length=10)
+world.attach(joint1)
+
+while ....:
+	world.update(dt=1.0/config.PhyFPS)
+
+The ViewPort usage:
+
+vp = ViewPort(s=(0, 0, 0), w=10, h=8, d=0)
+vp.zoom(0.8)
+vp.rotate(n, angle)
+vp.update()
+# then use vp.surface to render

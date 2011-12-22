@@ -1,32 +1,34 @@
 from numpy import *
 norm = linalg.norm
 
-class vec(array):
-	def __init__(self, *args):
-		array.__init__(self, *args, dtype=double)
+def vec(v):
+	return mat(v, dtype=double)
 
-class CoorSystem(matrix, object):
-	__slots__ = ['transform', 'origin']
+class CoorSystem(object):
+	__slots__ = ['transform', 'origin', 'M']
 	def __init__(self, M, origin):
-		matrix.__init__(self, M, dtype=double)
-		if self.shape != (3, 3):
+		self.M = matrix(M)
+		if self.M.shape != (3, 3):
 			raise Exception("Wrong coordinate system shape, should be (3, 3)")
-		self.origin = origin
+		self.origin = mat(origin).T
+		if self.origin.shape != (3, 1):
+			raise Exception("Wrong coordinate system origin point, should be (3, 1)")
+
 
 	def transform(self, c2, x):
 		"""
 		c1 * y = c2 * x
 		"""
-		c1 = self
-		return solve(c1, c2 * x + c2.origin - c1.origin)) + c1.origin
+		result = linalg.solve(self.M, c2.M * x + c2.origin - self.origin)
+		return result
 
 	def apply(self, x):
-		return self * x + self.origin
+		return self.M * x + self.origin
 
 def rotate_about_axis(x, p, u, angle):
 	pass
 
-PixelPerMeter = 1366/0.32
+PixelPerMeter = 1366/20.32
 PPM = PixelPerMeter
 MeterPerPixel = 1/PixelPerMeter
 MPP = MeterPerPixel

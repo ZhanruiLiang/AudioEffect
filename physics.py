@@ -3,12 +3,13 @@ from numpy.linalg import *
 from mymath import vec, CoorSystem
 import random
 import cPickle
+import config
 
 def new_vec():
 	return vec((.0, .0, .0))
 
 class PhyPoint(object):
-	__slots__ = ['s', 'v', 'a', 'mass', 'q', 'apply', 'update']
+	__slots__ = ['s', 'v', 'a', 'mass', 'F', 'q', 'apply', 'update']
 	def __init__(self):
 		self.s = new_vec()
 		self.v = new_vec()
@@ -23,10 +24,10 @@ class PhyPoint(object):
 	def update(self, dt):
 		if self.mass == 0:
 			return
-		self.a += self.F / self.mass
+		self.a = self.F / self.mass
 		v = self.v
 		self.s += (v + dt/2 * self.a) * dt
-		self.v += dt * self.a
+		self.v += dt * self.a 
 		self.F = vec((0.0, 0.0, 0.0))
 
 class PhyShape(object):
@@ -43,7 +44,7 @@ class ShapeSquare(PhyShape):
 	def __init__(self, a, color=None):
 		self.a = a
 		nodes = [(-a, -a), (a, -a), (a, a), (-a, a)]
-		super(PhyShape, self).__init__(nodes, color)
+		super(ShapeSquare, self).__init__(nodes, color)
 
 class PhyBody(object):
 	__slots__ = ['t1', 't2', 't3', 'shape', 'coor']
@@ -56,6 +57,7 @@ class PhyBody(object):
 	@property
 	def coor(self):
 		""" The body's coordinate system"""
+		t1, t2, t3 = self.t1, self.t2, self.t3
 		s = t2.s - t1.s
 		s /= norm(s)
 		t = t3.s - t1.s
@@ -99,11 +101,11 @@ class PhyJoint(object):
 class Spring(PhyJoint):
 	__slots__ = ['k']
 	def __init__(self, t1, t2, l, k):
-		super(PhyPoint, self).__init__(t1, t2, l)
+		super(Spring , self).__init__(t1, t2, l)
 		self.k = k
 	def apply(self, dt):
 		r = self.t2.s - self.t1.s
-		F = k * (self.length/norm(r) - 1) * r
+		F = self.k * (self.length/norm(r) - 1) * r
 		self.t2.apply(F)
 		self.t1.apply(-F)
 
@@ -137,15 +139,19 @@ class PhyWorld:
 		self.joints = []
 		self.fields = []
 
-		map = {PhyPoint: self.points,
+		self.map = {PhyPoint: self.points,
 				PhyBody: self.bodies,
-				PhyJoint: self.bodies,
+				PhyJoint: self.joints,
 				PhyField: self.fields}
 	
+	# TODO: write save and  load
 	def save(self, filename=None):
 		fn = filename or config.Savefile
+		needsave = [self.points, self.bodies, self.fields, self.joints]
 		with open(fn, 'wb') as f:
-			cPickle.dump(self, f, cPickle.HIGHEST_PROTOCOL)
+			for i in needsave:
+				# cPickle.dump(i, f, cPickle.HIGHEST_PROTOCOL)
+				cPickle.dump(i, f, 0)
 
 	def load(filename=None):
 		fn = filename or config.Savefile
@@ -167,15 +173,18 @@ class PhyWorld:
 		dt = None or self.dt
 		# apply all joints
 		for i in self.joints:
-			i.apply()
+			i.apply(dt)
 		# apply all fields
 		for i in self.fields:
-			i.apply()
+			i.apply(dt)
 		# update all points
+		E = 0
 		for i in self.points:
-			i.update()
+			i.update(dt)
+			E += 0.5 * i.mass * norm(i.v)**2
+		print E
 
 	def attach(self, obj):
-		for x in map:
+		for x in self.map:
 			if isinstance(obj, x):
-				map[x].append(obj)
+				self.map[x].append(obj)
