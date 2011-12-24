@@ -8,14 +8,23 @@ import config
 def new_vec():
 	return vec((.0, .0, .0))
 
-class PhyPoint(object):
-	__slots__ = ['s', 'v', 'a', 'mass', 'F', 'q', 'apply', 'update']
-	def __init__(self):
-		self.s = new_vec()
-		self.v = new_vec()
+class PhyObject(object):
+	pass
+
+class PhyPoint(PhyObject):
+	# __slots__ = ['s', 'v', 'a', 'mass', 'F', 'q', 'apply', 'update']
+	def __init__(self, s=None, v=None, mass=None, q=None):
+		if s:
+			self.s = vec(s)
+		else:
+			self.s = new_vec()
+		if v:
+			self.v = vec(v)
+		else:
+			self.v = new_vec()
 		self.a = new_vec()
-		self.mass = .0
-		self.q = .0
+		self.mass = mass or .0
+		self.q = q or .0
 		self.F = new_vec()
 	
 	def apply(self, F):
@@ -30,8 +39,8 @@ class PhyPoint(object):
 		self.v += dt * self.a 
 		self.F = vec((0.0, 0.0, 0.0))
 
-class PhyShape(object):
-	__slots__ = ['nodes', 'color']
+class PhyShape(PhyObject):
+	# __slots__ = ['nodes', 'color']
 	def __init__(self, nodes, color=None):
 		"""
 		nodes: the polygon's nodes, note that this is in 2d plane
@@ -40,14 +49,14 @@ class PhyShape(object):
 		self.color = color or [random.randrange(0xff) for i in xrange(3)]
 
 class ShapeSquare(PhyShape):
-	__slots__ = ['a']
+	# __slots__ = ['a']
 	def __init__(self, a, color=None):
 		self.a = a
 		nodes = [(-a, -a), (a, -a), (a, a), (-a, a)]
 		super(ShapeSquare, self).__init__(nodes, color)
 
-class PhyBody(object):
-	__slots__ = ['t1', 't2', 't3', 'shape', 'coor']
+class PhyBody(PhyObject):
+	# __slots__ = ['t1', 't2', 't3', 'shape', 'coor']
 	def __init__(self, t1, t2, t3, shape=None):
 		self.t1 = t1
 		self.t2 = t2
@@ -67,20 +76,21 @@ class PhyBody(object):
 		coor = CoorSystem(vstack((s, t, r)), t1.s)
 		return coor
 
-class PhyField(object):
-	__slots__ = ['s', 'r', 'targets', 'apply']
-	def __init__(self, s, r, targets=None):
-		self.s = s
-		self.r = r
-		self.targets = targets
+class PhyField(PhyObject):
+	# __slots__ = ['s', 'r', 'targets', 'apply']
+	def __init__(self):
+		self.s = vec((0, 0, 0))
+		self.r = 100
+		self.targets = None
 
 	def apply(self, dt):
 		pass
 
 class GravityField(PhyField):
-	__slots__ = ['g']
+	# __slots__ = ['g']
 	def __init__(self, g=9.8):
 		self.g = g
+		super(GravityField, self).__init__()
 
 	def apply(self, dt):
 		s0 = self.s
@@ -89,8 +99,39 @@ class GravityField(PhyField):
 			if norm(r) < self.r:
 				target.apply(target.mass * self.g)
 
-class PhyJoint(object):
-	__slots__ = ['t1', 't2', 'length', 'update']
+class FField(PhyField):
+	# __slots__ = ['f']
+	def __init__(self, f=0.1):
+		super(FField, self).__init__()
+		self.f = f
+
+	def apply(self, dt):
+		s0 = self.s
+		for t in self.targets:
+			if norm(t.s - s0) < self.r:
+				t.apply(-self.f * t.v)
+
+class QField(PhyField):
+	def __init__(self, T, q):
+		self.k = 0.1
+		self.t = 0
+		self.T = T
+		self.s = vec((0, 0, 0))
+		self.q = q
+
+	def apply(self, dt):
+		self.t += dt
+		if self.t > self.T:
+			self.t = 0
+		k = self.k
+		# q = self.q * (-sin(2 * pi / self.T * self.t))
+		q = self.q
+		for tar in self.targets:
+			r = tar.s - self.s
+			tar.apply(k * q * tar.q / norm(r)**3 * r)
+
+class PhyJoint(PhyObject):
+	# __slots__ = ['t1', 't2', 'length', 'update']
 	def __init__(self, t1, t2, length):
 		self.t1 = t1
 		self.t2 = t2
@@ -99,7 +140,7 @@ class PhyJoint(object):
 		pass
 
 class Spring(PhyJoint):
-	__slots__ = ['k']
+	# __slots__ = ['k']
 	def __init__(self, t1, t2, l, k):
 		super(Spring , self).__init__(t1, t2, l)
 		self.k = k
@@ -110,9 +151,9 @@ class Spring(PhyJoint):
 		self.t1.apply(-F)
 
 class Stick(PhyJoint):
-	__slots__ = []
-	kIn = 100
-	kOut = 50
+	# __slots__ = []
+	kIn = 1000
+	kOut = 1000
 	def apply(self, dt):
 		r = self.t2.s - self.t1.s
 		nr = norm(r)
@@ -123,6 +164,9 @@ class Stick(PhyJoint):
 		F = k * (self.length/nr - 1) * r
 		self.t2.apply(F)
 		self.t1.apply(-F)
+
+#TODO delete
+debugFile = open('debug', 'w')
 
 class PhyWorld:
 	def __init__(self, size, fps):
@@ -143,16 +187,15 @@ class PhyWorld:
 				PhyBody: self.bodies,
 				PhyJoint: self.joints,
 				PhyField: self.fields}
+	def __del__(self):
+		debugFile.close()
 	
-	# TODO: write save and  load
 	def save(self, filename=None):
 		fn = filename or config.Savefile
-		needsave = [self.points, self.bodies, self.fields, self.joints]
 		with open(fn, 'wb') as f:
-			for i in needsave:
-				# cPickle.dump(i, f, cPickle.HIGHEST_PROTOCOL)
-				cPickle.dump(i, f, 0)
+			cPickle.dump(self, f, 0)
 
+	@staticmethod
 	def load(filename=None):
 		fn = filename or config.Savefile
 		with open(fn, 'rb') as f:
@@ -182,9 +225,10 @@ class PhyWorld:
 		for i in self.points:
 			i.update(dt)
 			E += 0.5 * i.mass * norm(i.v)**2
-		print E
 
 	def attach(self, obj):
 		for x in self.map:
 			if isinstance(obj, x):
 				self.map[x].append(obj)
+		if isinstance(obj, PhyField):
+			self.fields[-1].targets = self.points

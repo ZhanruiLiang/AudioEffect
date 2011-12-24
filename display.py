@@ -72,10 +72,10 @@ class Display(object):
 		for point in self.world.points:
 			p, flag = w2s(point.s.T)
 			if flag:
-				pg.draw.circle(self.screen, pg.Color("red"), vint(p), 5)
+				pg.draw.circle(self.screen, pg.Color("blue"), vint(p), 2)
 
 		# draw joints
-		jointColor = (0xff, 0xff, 0)
+		jointColor = (0x22, 0xff, 0)
 		for j in self.world.joints:
 			p1, flag1 = w2s(j.t1.s.T)
 			p2, flag2 = w2s(j.t2.s.T)
@@ -107,17 +107,28 @@ class ViewPort(object):
 
 	@s.setter
 	def s(self, value):
-		self.coor.origin = value
+		if type(value) != matrix:
+			self.coor.origin = mat(value).T
+		else:
+			self.coor.origin = value
 
 	def zoom(self, scale):
 		self._zoom = scale
 	
-	def rotate_to(self, s, focus):
+	def rotate(self, s, n, angle):
 		"""
-		rotate the camera to position `s`, but always focus on `focus`
 		"""
 		#TODO
-		pass
+		coor = self.coor.M
+		s = mat(s).T
+		n = mat(n).T
+		i = self.s + coor[:, 0]
+		j = self.s + coor[:, 1]
+		k = self.s + coor[:, 2]
+		sp = rotate_about_axis(self.s, s, n, angle)
+		i, j, k = ((rotate_about_axis(x, s, n, angle) - sp) for x in (i,j,k))
+		self.coor.M = hstack((i, j, k))
+		self.coor.origin = sp
 
 	def watch(self, p):
 		"""
@@ -135,6 +146,5 @@ class ViewPort(object):
 		np = self.coor.transform(worldCoor, p)
 		x, y, z = np[0, 0], np[1, 0], np[2, 0]
 		k = d / (d + z)
-		# print 'xyz',x,y,z
 		return (self.w + k * x, self.h + k * y), (z >= 0)
 
